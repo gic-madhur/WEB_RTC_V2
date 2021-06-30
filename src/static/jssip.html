@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>Teleworker Connect</title>
+
+    <meta name="theme-color" content="#ffffff">
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        input.pin {
+            font-size: 1.3em;
+            color: #004990;
+            background: none;
+            border: none;
+            background-image: url('../assets/Button-30.jpg');
+            margin: 0;
+            margin-bottom: 1px;
+            width: 32px;
+            height: 32px;
+            padding-top: 1px;
+            padding-bottom: 3px;
+            padding-left: 1px;
+            padding-right: 3px;
+            border: black;
+            border-width: 1px;
+        }
+
+        .center {
+            height: 100%;
+            width: 100%;
+            text-align: center;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            }
+
+        #divLogo {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("../assets/unity4-device.png");
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            cursor: pointer;
+        }
+
+        .monochrome {
+            filter: brightness(0) saturate(100%);
+        }
+
+        .pointer {
+            cursor: pointer;
+        }
+
+        .spin {
+            animation: spinX 3s infinite;
+        }
+
+        @keyframes spinX {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="divLogo" class="monochrome"></div>
+
+    <div id="btnSignIn" class="center pointer">
+        <div id="spnStatus">...</div>
+        <div id="dtmfbuttons" style="margin-top: 10px;">
+            <input type="button" class="pin" value="1" onclick="sendTone('1');" />
+            <input type="button" class="pin" value="2" onclick="sendTone('2');" />
+            <input type="button" class="pin" value="3" onclick="sendTone('3');" /><br />
+            <input type="button" class="pin" value="4" onclick="sendTone('4');" />
+            <input type="button" class="pin" value="5" onclick="sendTone('5');" />
+            <input type="button" class="pin" value="6" onclick="sendTone('6');" /><br />
+            <input type="button" class="pin" value="7" onclick="sendTone('7');" />
+            <input type="button" class="pin" value="8" onclick="sendTone('8');" />
+            <input type="button" class="pin" value="9" onclick="sendTone('9');" /><br />
+            <input type="button" class="pin" value="*" onclick="sendTone('*');" />
+            <input type="button" class="pin" value="0" onclick="sendTone('0');" />
+            <input type="button" class="pin" value="#" onclick="sendTone('#');" /><br />
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+    <!-- <script src="https://unpkg.com/jssip@3.4.5/lib-es5/JsSIP.js"></script> -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jssip/3.1.2/jssip.js"></script>
+    <script>
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+        var agent = '54322' //getUrlParameter('agent');
+        var agentsessionid = getUrlParameter('sessionid');
+
+        var showDialpadParam = "0";//getUrlParameter('showdialpad');
+        // OK live now always show it.
+        showDialpadParam = "1";
+
+        // JsSIP.debug.enable('JsSIP:*');
+        // JsSIP.debug.disable('JsSIP:*');
+
+        var $spnStatus = $("#spnStatus");
+        var $divLogo = $("#divLogo");
+        var $btnSignIn = $("#btnSignIn");
+
+        setDisconnected();
+
+        $btnSignIn.on("click", function () {
+            startJsSip();
+        });
+
+        $spnStatus.on("click", function () {
+            startJsSip();
+        });
+
+        $divLogo.on("click", function () {
+            startJsSip();
+        });
+
+        var hasMic = false;
+
+        function requestMic() {
+            console.log('requestMic');
+            setStatus("Accessing microphone...");
+            navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+                .then(function (stream) {
+                    console.log("getUserMedia.stream", stream);
+                    hasMic = true;
+                    setStatus("Click to Connect");
+                })
+                .catch(function (err) {
+                    console.log("getUserMedia.err", err);
+                    hasMic = false;
+                    setError("Microphone access blocked");
+                })
+        }
+
+        requestMic();
+
+        var incomingCallAudio = new window.Audio('../img/ringing_new_phone.mp3');
+        incomingCallAudio.loop = true;
+        var remoteAudio = new window.Audio();
+        remoteAudio.autoplay = "autoplay";
+        remoteAudio.crossOrigin = "anonymous";
+
+        var beepAudio = new window.Audio('../img/beep.wav');
+        beepAudio.loop = false;
+
+        var socket = new JsSIP.WebSocketInterface('wss://wss.unity4.com:8089/ws');
+        var configuration = {
+            display_name: agent,
+            uri: 'sip:' + 54322 + '@wss.unity4.com',
+            password: 'lboles1cuqczxqmhjewmdfn1',
+            sockets: [socket],
+            registrar_server: null,
+            contact_uri: null,
+            authorization_user: agent,
+            instance_id: null,
+            session_timers: true,
+            use_preloaded_route: false,
+            callstats:
+            {
+                enabled: false,
+                AppID: null,
+                AppSecret: null
+            }
+        };
+        var callOptions = {
+            mediaConstraints: { audio: true, video: false },
+            rtcpMuxPolicy: "require",
+            pcConfig:
+            {
+                iceServers:
+                    [
+                        {
+                            urls: ["stun:stun.l.google.com:19302"]
+                        }
+                    ]
+            }
+        };
+
+        var webRTCPhone;
+        var rtcSession;
+
+        function initJsSip() {
+            webRTCPhone = new JsSIP.UA(configuration);
+            webRTCPhone.on('newRTCSession', function (e) {
+                console.log("newRTCSession", e);
+                setStatus("Incoming call");
+                var session = e.session;
+                if (rtcSession) { // hangup any existing call
+                    rtcSession.terminate();
+                }
+                rtcSession = session;
+                rtcSession.on("ended", function (e) {
+                    console.log("session.ended", e)
+                    rtcSession = null;
+                    setConnectionReady();
+                });
+                rtcSession.on("failed", function () {
+                    console.log("session.failed", e)
+                    setError("Call failed");
+                    rtcSession = null;
+                });
+                rtcSession.on("getusermediafailed", function () {
+                    console.log("session.getusermediafailed", e)
+                });
+                rtcSession.on("accepted", function (e) {
+                    console.log("session.accepted", e);
+                    incomingCallAudio.pause();
+                    setStatus("Call accepted");
+                    if (candidateTimeout != null) {
+                        clearTimeout(candidateTimeout);
+                    }
+                });
+                rtcSession.on("confirmed", function (e) {
+                    console.log("session.confirmed", e);
+                    setConnectionActive();
+                });
+                rtcSession.on('peerconnection', function (e) {
+                    console.log('session.peerconnection', e);
+                    const peerconnection = e.peerconnection;
+
+                    peerconnection.onaddstream = function (e) {
+                        console.log('peerconnection.onaddstream', e);
+                        setStatus("Connecting audio...");
+                        remoteAudio.srcObject = e.stream;
+                        remoteAudio.play();
+                    };
+                });
+                rtcSession.on("connecting", function (e) {
+                    console.log("session.connecting", e)
+                });
+                rtcSession.on("sending", function (e) {
+                    console.log("session.sending", e)
+                });
+                rtcSession.on("progress", function (e) {
+                    console.log("session.progress", e)
+                });
+                //rtcSession.on("icecandidate", function (event) {
+                //    console.log('session.icecandidate', event);
+                //    if (event.candidate.type === "srflx" &&
+                //        event.candidate.relatedAddress !== null &&
+                //        event.candidate.relatedPort !== null) {
+                //        event.ready();
+                //    }
+                //});
+                var candidateTimeout = null;
+                rtcSession.on('icecandidate', function (candidate, ready) {
+                    console.log('session.icecandidate', candidate);
+                    if (candidateTimeout != null) {
+                        clearTimeout(candidateTimeout);
+                    }
+                    // 1.5 seconds timeout after the last icecandidate received!
+                    //candidateTimeout = setTimeout(candidate.ready, 1500);
+                    candidateTimeout = setTimeout(forceCandidateReady, 1500, candidate);
+                });
+
+
+
+                if (rtcSession.direction === 'incoming') {
+                    try {
+                        incomingCallAudio.play();
+                    }
+                    catch (err) {
+                        console.error(err);
+                    }
+                }
+
+                //attempt auto-answer, but let it ring for half-sec...
+                setTimeout(function () { answerCall(); }, 500);
+
+            });
+
+            webRTCPhone.on('connected', function (e) {
+                console.log("connected", e);
+                setConnectionReady();
+            });
+
+            webRTCPhone.on('disconnected', function (e) {
+                console.log("disconnected", e);
+            });
+        }
+
+        function forceCandidateReady(candidate) {
+            console.log("candidateTimeout", candidate);
+            candidate.ready();
+        }
+
+
+        function showDialPad() {
+            if (showDialpadParam == "1") {
+                $(".center").css("top", "28%");
+                $("#dtmfbuttons").fadeIn();
+            }
+        }
+
+        function hideDialPad() {
+            $(".center").css("top", "50%");
+            $("#dtmfbuttons").hide();
+        }
+
+        function startJsSip() {
+            console.log('startJsSip');
+            if (hasMic) {
+                if (!webRTCPhone) {
+                    console.log('324')
+                    initJsSip();
+                }
+                if (!webRTCPhone.isConnected()) {
+                    console.log('328')
+                    webRTCPhone.start();
+                }
+            }
+        }
+
+        function stopJsSip() {
+            console.log('stopJsSip');
+            if (webRTCPhone && webRTCPhone.isConnected()) {
+                webRTCPhone.stop();
+            }
+
+            hideDialPad();
+        }
+
+        function answerCall() {
+            console.log('answerCall');
+            rtcSession.answer(callOptions);
+        }
+
+        function hangup() {
+            console.log('hangup');
+            rtcSession.terminate();
+            rtcSession = null;
+
+            hideDialPad();
+        }
+
+        function sendTone(dtmftone) {
+            var options = {
+                'duration': 160,
+                'extraHeaders': ['X-Foo: foo', 'X-Bar: bar'],
+                'transportType': 'RFC2833',
+                'eventHandlers': {
+                    'succeeded': function (e) { setStatus("Sent " + dtmftone) },
+                    'failed': function (e) { setStatus("Send " + dtmftone + " failed") }
+                }
+            };
+            console.log('sendTone ' + dtmftone);
+            //beepAudio.play();
+
+            rtcSession.sendDTMF(dtmftone);
+
+        }
+
+        function setStatus(status) {
+            $spnStatus.html(status);
+            $spnStatus.removeClass("text-danger");
+        }
+
+        function setDisconnected() {
+            setStatus("Click to Connect");
+            $divLogo.addClass("monochrome");
+            $divLogo.removeClass("spin");
+            $btnSignIn.addClass("pointer");
+
+            hideDialPad();
+        }
+
+        function setConnectionReady() {
+            setStatus("Connection Ready");
+            $divLogo.removeClass("monochrome");
+            $divLogo.removeClass("spin");
+            $btnSignIn.removeClass("pointer");
+
+            hideDialPad();
+        }
+
+        function setConnectionActive() {
+            setStatus("Connection Active");
+            $divLogo.removeClass("monochrome");
+            $divLogo.addClass("spin");
+
+            showDialPad();
+        }
+
+        function setError(status) {
+            setStatus("<b>" + status + "</b>");
+            $spnStatus.addClass("text-danger");
+        }
+
+
+
+    </script>
+</body>
+</html>

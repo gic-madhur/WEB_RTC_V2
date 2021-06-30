@@ -1,0 +1,203 @@
+<script src="//cdnjs.cloudflare.com/ajax/libs/jssip/0.7.23/jssip.min.js"></script>
+<script>
+  console.log("----")
+    /* 
+ * How To Use:
+ * 1. fill in valid credentials in the config below
+ * 2. run the JsFiddle and enjoy
+ */
+var configuration = {
+  'uri': 'sip:54322@wss.unity4.com', // FILL SIP URI HERE like sip:sip-user@your-domain.bwapp.bwsip.io
+  'password': '1af32aa10deb9755631f40600e115bea', // FILL PASSWORD HERE,
+  'ws_servers': 'wss://wss.unity4.com:8089/ws'
+};
+console.log(configuration)
+
+var incomingCallAudio = new window.Audio('../assets/');
+incomingCallAudio.loop = true;
+var remoteAudio = new window.Audio();
+remoteAudio.autoplay = true;
+
+var callOptions = {
+  mediaConstraints: {audio: true, video: false}
+};
+
+var phone;
+console.log(configuration)
+if(configuration.uri && configuration.password){
+    JsSIP.debug.enable('JsSIP:*'); // more detailed debug output
+    phone = new JsSIP.UA(configuration);
+    phone.on('registrationFailed', function(ev){
+    	alert('Registering on SIP server failed with error: ' + ev.cause);
+      configuration.uri = null;
+      configuration.password = null;
+      updateUI();
+    });
+    phone.on('newRTCSession',function(ev){
+        var newSession = ev.session;
+        if(session){ // hangup any existing call
+            session.terminate();
+        }
+        session = newSession;
+        var completeSession = function(){
+        		session = null;
+          	updateUI();
+        };
+        session.on('ended', completeSession);
+        session.on('failed', completeSession);
+        session.on('accepted',updateUI);
+        session.on('confirmed',updateUI);
+        session.on('addstream', function(e){
+          incomingCallAudio.pause();
+          remoteAudio.src = window.URL.createObjectURL(e.stream);
+        });
+        if(session.direction === 'incoming'){
+        	incomingCallAudio.play();
+        }
+        updateUI();
+    });
+    phone.start();
+}
+
+var session;
+updateUI();
+
+$('#connectCall').click(function () {
+  console.log('connect call')
+    var dest = $('#toField').val();
+    phone.call(dest, callOptions);
+    updateUI();
+});
+
+
+$('#answer').click(function(){
+    session.answer(callOptions);
+});
+
+var hangup = function(){
+		session.terminate();
+};
+
+$('#hangUp').click(hangup);
+$('#reject').click(hangup);
+
+$('#mute').click(function(){
+    console.log('MUTE CLICKED');
+    if(session.isMuted().audio){
+        session.unmute({audio: true});
+    }else{
+        session.mute({audio: true});   
+    }
+    updateUI();
+});
+$('#toField').keypress(function(e){
+    if(e.which === 13){//enter
+        $('#connectCall').click();
+    }
+});
+$('#inCallButtons').on('click', '.dialpad-char', function (e) {
+    var $target = $(e.target);
+    var value = $target.data('value');
+    session.sendDTMF(value.toString());
+});
+function updateUI(){
+  console.log(configuration)
+    if(configuration.uri && configuration.password){
+        $('#errorMessage').hide();
+        $('#wrapper').show();
+        if(session){
+            if(session.isInProgress()){
+                if(session.direction === 'incoming'){
+                    $('#incomingCallNumber').html(session.remote_identity.uri);
+                    $('#incomingCall').show();
+                    $('#callControl').hide()  
+                    $('#incomingCall').show();
+                }else{
+                    $('#callInfoText').html('Ringing...');
+                    $('#callInfoNumber').html(session.remote_identity.uri.user);
+                    $('#callStatus').show();                   
+                }
+                
+            }else if(session.isEstablished()){
+                $('#callStatus').show();
+                $('#incomingCall').hide();
+                $('#callInfoText').html('In Call');
+                $('#callInfoNumber').html(session.remote_identity.uri.user);
+                $('#inCallButtons').show();
+                incomingCallAudio.pause();
+            }
+            $('#callControl').hide();
+        }else{
+            $('#incomingCall').hide();
+            $('#callControl').show();
+            $('#callStatus').hide();
+            $('#inCallButtons').hide();
+            incomingCallAudio.pause();
+        }
+        //microphone mute icon
+        if(session && session.isMuted().audio){
+            $('#muteIcon').addClass('fa-microphone-slash');
+            $('#muteIcon').removeClass('fa-microphone');
+        }else{
+            $('#muteIcon').removeClass('fa-microphone-slash');
+            $('#muteIcon').addClass('fa-microphone');
+        }
+    }else{
+        $('#wrapper').hide();
+        $('#errorMessage').show();
+    }
+}
+
+</script>
+
+<div id="errorMessage">must set sip uri/password</div>
+<div id="wrapper">
+  <div id="incomingCall" style="display: none">
+    <div class="callInfo">
+      <h3>Incoming Call</h3>
+      <p id="incomingCallNumber">Unknown</p>
+    </div>
+    <div id="answer"> <i class="fa fa-phone"></i></div>
+    <div id="reject"> <i class="fa fa-phone"></i></div>
+  </div>
+  <div id="callStatus" style="display: none">
+    <div class="callInfo">
+      <h3 id="callInfoText">info text goes here</h3>
+      <p id="callInfoNumber">info number goes here</p>
+    </div>
+    <div id="hangUp"> <i class="fa fa-phone"></i>
+    </div>
+  </div>
+  <!---------TO FIELD---------------------------------------------------->
+  <!---------DIALPAD---------------------------------------------------->
+  <div id="inCallButtons" style="display: none">
+    <div id="dialPad">
+
+      <div class="dialpad-char" data-value="1" unselectable="on">1</div>
+      <div class="dialpad-char" data-value="2" unselectable="on">2</div>
+      <div class="dialpad-char" data-value="3" unselectable="on">3</div>
+      <div class="dialpad-char" data-value="4" unselectable="on">4</div>
+      <div class="dialpad-char" data-value="5" unselectable="on">5</div>
+      <div class="dialpad-char" data-value="6" unselectable="on">6</div>
+      <div class="dialpad-char" data-value="7" unselectable="on">7</div>
+      <div class="dialpad-char" data-value="8" unselectable="on">8</div>
+      <div class="dialpad-char" data-value="9" unselectable="on">9</div>
+      <div class="dialpad-char" data-value="*" unselectable="on">*</div>
+      <div class="dialpad-char" data-value="0" unselectable="on">0</div>
+      <div class="dialpad-char" data-value="#" unselectable="on">#</div>
+    </div>
+    <div id="mute">
+      <i id="muteIcon" class="fa fa-microphone"></i>
+    </div>
+  </div>
+
+  <!---------DIAL CONTROLS-------------------------------------------->
+  <div id="callControl">
+    <div id="to">
+      <input id="toField" type="text" placeholder="Enter number here" />
+    </div>
+    <div id="connectCall"> <i class="fa fa-phone"></i>
+
+    </div>
+  </div>
+</div>

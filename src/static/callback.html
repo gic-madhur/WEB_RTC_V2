@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title></title>
+  </head>
+  <body>
+    <script src="oidc-client.min.js"></script>
+    <script>
+      new Oidc.UserManager()
+
+        .signinRedirectCallback()
+        .then((user) => {
+         // console.log("signinRedirectCallback", user);
+          if (user && user.state) {
+            window.location.href = "." + user.state;
+          } else {
+            window.location.href = "./";
+          }
+        })
+        .catch(function (e) {
+         // console.error("signinRedirectCallback", e);
+        });
+
+    </script>
+  </body>
+</html>

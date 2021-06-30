@@ -1,0 +1,24 @@
+<!-- <app-webrtc-test></app-webrtc-test> -->
+ <audio
+        controls id='remoteAudio'>
+        
+    </audio> 
+<app-jssip-wss-connect></app-jssip-wss-connect>
+<button (click)="login()">Login</button>
+<button (click)="CallUa()">Connect</button>
+<button (click)="Call()">Call</button>
+<!-- <button (click)="api()">Call API</button>
+<form [formGroup]="chatForm">
+  <input formControlName="msg" />
+  <button (click)="sendChat()">Send Message</button>
+</form> -->
+<button (click)="logout()">Logout</button>
+
+<!-- <h4>user</h4> -->
+<pre>{{ user| json }}</pre>
+<!-- <h4>news</h4>
+<pre>{{ news | json }}</pre>
+<h4>messages</h4>
+<pre>{{ messages$ | async | json }}</pre>
+<h4>error</h4>
+<pre>{{ error$ | async | json }}</pre> -->

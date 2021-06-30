@@ -1,0 +1,35 @@
+export class PresenceStateConstants {
+  static login = 1;
+  static logout = 2;
+  static portalMain = 3;
+  static reports = 4;
+  static timesheets = 5;
+  static updateDetails = 6;
+  static scheduling = 7;
+  static training = 8;
+  static telephony = 9;
+  static availableIB = 10;
+  static availableOB = 11;
+  static talkIB = 12;
+  static talkOB = 13;
+  static wrapIB = 14;
+  static wrapOB = 15;
+  static holdIB = 16;
+  static holdOB = 17;
+  static transferIB = 18;
+  static transferOB = 19;
+  static dialling = 20;
+  static ringing = 21;
+  static preview = 22;
+  static general = 23;
+  static unavailableIB = 24;
+  static unavailableOB = 25;
+  static standby = 26;
+  static connectIB = 27;
+  static connectOB = 28;
+  static iBMissedCall = 29;
+  static availableChat = 434;
+  static unavailableChat = 435;
+  static offline = 685;
+  static heartbeat = 694;
+}
